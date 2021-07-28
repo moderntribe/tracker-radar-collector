@@ -116,7 +116,7 @@ async function getSiteData(context, url, {
 
         const timer = createTimer();
         let cdpClient = null;
-        
+
         try {
             cdpClient = await target.createCDPSession();
         } catch (e) {
@@ -215,6 +215,10 @@ async function getSiteData(context, url, {
     }
 
     // give website a bit more time for things to settle
+    await page.waitForTimeout(EXECUTION_WAIT_TIME);
+
+    // Reload the page to collect more data only set once you've visited a site
+    await page.reload({ waitUntil: ['networkidle0', 'domcontentloaded'] });
     await page.waitForTimeout(EXECUTION_WAIT_TIME);
 
     const finalUrl = page.url();
