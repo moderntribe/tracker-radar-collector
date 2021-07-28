@@ -217,9 +217,15 @@ async function getSiteData(context, url, {
     // give website a bit more time for things to settle
     await page.waitForTimeout(EXECUTION_WAIT_TIME);
 
+    // Start ModernTribe
+    log(`initial page load complete in ${initPageTimer.getElapsedTime()}s`);
+
     // Reload the page to collect more data only set once you've visited a site
     await page.reload({ waitUntil: ['networkidle0', 'domcontentloaded'] });
     await page.waitForTimeout(EXECUTION_WAIT_TIME);
+
+    log(`page reload complete in ${initPageTimer.getElapsedTime()}s`);
+    // End ModernTribe
 
     const finalUrl = page.url();
     /**
