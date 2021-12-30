@@ -197,20 +197,34 @@ async function getSiteData(context, url, {
     page.on('error', e => log(chalk.red(e.message)));
 
     let timeout = false;
+    let recoveredFromTimeOut = false;
 
     try {
         await page.goto(url.toString(), {timeout: MAX_LOAD_TIME, waitUntil: 'networkidle0'});
     } catch (e) {
         if (e instanceof puppeteer.errors.TimeoutError || (e.name && e.name === 'TimeoutError')) {
-            log(chalk.yellow('Navigation timeout exceeded.'));
+            // Start ModernTribe
+            log(chalk.yellow('networkidle0 timeout detected, retrying using the "load" event instead'));
 
-            for (let target of targets) {
-                if (target.type === 'page') {
-                    // eslint-disable-next-line no-await-in-loop
-                    await target.cdpClient.send('Page.stopLoading');
+            try {
+                await page.goto(url.toString(), {timeout: MAX_LOAD_TIME, waitUntil: 'load'});
+                recoveredFromTimeOut = true;
+            } catch (e) {
+                if (e instanceof puppeteer.errors.TimeoutError || (e.name && e.name === 'TimeoutError')) {
+                    log(chalk.yellow('Navigation timeout exceeded.'));
+
+                    for (let target of targets) {
+                        if (target.type === 'page') {
+                            // eslint-disable-next-line no-await-in-loop
+                            await target.cdpClient.send('Page.stopLoading');
+                        }
+                    }
+                    timeout = true;
+                } else {
+                    throw e;
                 }
             }
-            timeout = true;
+            // End ModernTribe
         } else {
             throw e;
         }
@@ -223,7 +237,12 @@ async function getSiteData(context, url, {
     log(`initial page load complete in ${initPageTimer.getElapsedTime()}s`);
 
     // Reload the page to collect more data only set once you've visited a site
-    await page.reload({ waitUntil: ['networkidle0', 'domcontentloaded'] });
+    if (recoveredFromTimeOut) {
+        await page.reload({waitUntil: 'load'});
+    } else {
+        await page.reload({waitUntil: ['networkidle0', 'load']});
+    }
+
     await page.waitForTimeout(EXECUTION_WAIT_TIME);
 
     log(`page reload complete in ${initPageTimer.getElapsedTime()}s`);
@@ -329,4 +348,4 @@ module.exports = async (url, options) => {
  * @property {number} testStarted time when the crawl started (unix timestamp)
  * @property {number} testFinished time when the crawl finished (unix timestamp)
  * @property {any} data object containing output from all collectors
-*/
+ */
