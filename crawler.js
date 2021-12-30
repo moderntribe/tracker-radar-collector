@@ -9,8 +9,8 @@ const MAX_LOAD_TIME = 30000;//ms
 const MAX_TOTAL_TIME = MAX_LOAD_TIME * 2;//ms
 const EXECUTION_WAIT_TIME = 2500;//ms
 
-const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36';
-const MOBILE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; Pixel 2 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Mobile Safari/537.36';
+const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36';
+const MOBILE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; Pixel 2 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Mobile Safari/537.36';
 
 const DEFAULT_VIEWPORT = {
     width: 1440,//px
@@ -30,8 +30,9 @@ const VISUAL_DEBUG = false;
 /**
  * @param {function(...any):void} log
  * @param {string} proxyHost
+ * @param {string} executablePath path to chromium executable to use
  */
-function openBrowser(log, proxyHost) {
+function openBrowser(log, proxyHost, executablePath) {
     /**
      * @type {import('puppeteer').BrowserLaunchArgumentOptions}
      */
@@ -57,9 +58,10 @@ function openBrowser(log, proxyHost) {
         args.args.push(`--proxy-server=${proxyHost}`);
         args.args.push(`--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE ${url.hostname}"`);
     }
-
-    // for debugging: use different version of Chromium/Chrome
-    // args.executablePath = "/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary";
+    if (executablePath) {
+        // @ts-ignore there is no single object that encapsulates properties of both BrowserLaunchArgumentOptions and LaunchOptions that are allowed here
+        args.executablePath = executablePath;
+    }
 
     return puppeteer.launch(args);
 }
@@ -285,12 +287,12 @@ function isThirdPartyRequest(documentUrl, requestUrl) {
 
 /**
  * @param {URL} url
- * @param {{collectors?: import('./collectors/BaseCollector')[], log?: function(...any):void, filterOutFirstParty?: boolean, emulateMobile?: boolean, emulateUserAgent?: boolean, proxyHost?: string, browserContext?: puppeteer.BrowserContext, runInEveryFrame?: function():void}} options
+ * @param {{collectors?: import('./collectors/BaseCollector')[], log?: function(...any):void, filterOutFirstParty?: boolean, emulateMobile?: boolean, emulateUserAgent?: boolean, proxyHost?: string, browserContext?: puppeteer.BrowserContext, runInEveryFrame?: function():void, executablePath?: string}} options
  * @returns {Promise<CollectResult>}
  */
 module.exports = async (url, options) => {
     const log = options.log || (() => {});
-    const browser = options.browserContext ? null : await openBrowser(log, options.proxyHost);
+    const browser = options.browserContext ? null : await openBrowser(log, options.proxyHost, options.executablePath);
     // Create a new incognito browser context.
     const context = options.browserContext || await browser.createIncognitoBrowserContext();
 
