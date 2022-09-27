@@ -20,8 +20,9 @@ Available options:
 - `-i, --input-list <path>` - path to a text file with list of URLs to crawl (each in a separate line)
 - `-d, --data-collectors <list>` - comma separated list (e.g `-d 'requests,cookies'`) of data collectors that should be used (all by default)
 - `-c, --crawlers <number>` - override the default number of concurrent crawlers (default number is picked based on the number of CPU cores)
-- `-v, --verbose` - log additional information on screen (progress bar will not be shown when verbose logging is enabled)
-- `-l, --log-file <path>` - save log data to a file
+- `--reporters <list>` - comma separated list (e.g. `--reporters 'cli,file,html'`) of reporters to be used ('cli' by default)
+- `-v, --verbose` - instructs reporters to log additional information (e.g. for "cli" reporter progress bar will not be shown when verbose logging is enabled)
+- `-l, --log-path <path>` - instructs reporters where all logs should be written to
 - `-f, --force-overwrite` - overwrite existing output files (by default entries with existing output files are skipped)
 - `-3, --only-3p` - don't save any first-party data (e.g. requests, API calls for the same eTLD+1 as the main document)
 - `-m, --mobile` - emulate a mobile device when crawling
@@ -29,6 +30,8 @@ Available options:
 - `-r, --region-code <region>` - optional 2 letter region code. For metadata only
 - `-a, --disable-anti-bot` - disable simple build-in anti bot detection script injected to every frame
 - `--chromium-version <version_number>` - use custom version of Chromium (e.g. "843427") instead of using the default
+- `--config <path>` - path to a config file that allows to set all the above settings (and more). Note that CLI flags have a higher priority than settings passed via config. You can find a sample config file in `tests/cli/sampleConfig.json`.
+- `--autoconsent-action <action>` - automatic autoconsent action (requires the `cmps` collector). Possible values: optIn, optOut
 
 ### Use it as a module
 
@@ -51,7 +54,7 @@ const {RequestCollector, CookieCollector, …} = require('tracker-radar-collecto
 ```js
 crawlerConductor({
     // required ↓
-    urls: ['https://example.com', 'https://duck.com', …],
+    urls: ['https://example.com', {url: 'https://duck.com', dataCollectors: [new ScreenshotCollector()]}, …], // two formats available: first format will use default collectors set below, second format will use custom set of collectors for this one url
     dataCallback: (url, result) => {…},
     // optional ↓
     dataCollectors: [new RequestCollector(), new CookieCollector()],
@@ -63,6 +66,8 @@ crawlerConductor({
     proxyHost: 'socks5://myproxy:8080',// SOCKS proxy host (none by default)
     antiBotDetection: true,// if anti bot detection script should be injected (true by default)
     chromiumVersion: '843427',// Chromium version that should be downloaded and used instead of the default one
+    maxLoadTimeMs: 30000,// how long should crawlers wait for the page to load, defaults to 30s
+    extraExecutionTimeMs: 2500,// how long should crawlers wait after page loads before collecting data, defaults to 2.5s
 });
 ```
 
@@ -81,6 +86,8 @@ const data = await crawler(new URL('https://example.com'), {
     browserContext: context,// if you prefer to create the browser context yourself (to e.g. use other browser or non-incognito context) you can pass it here (by default crawler will create an incognito context using standard chromium for you)
     runInEveryFrame: () => {window.alert('injected')},// function that should be executed in every frame (main + all subframes)
     executablePath: '/some/path/Chromium.app/Contents/MacOS/Chromium',// path to a custom Chromium installation that should be used instead of the default one
+    maxLoadTimeMs: 30000,// how long should the crawler wait for the page to load, defaults to 30s
+    extraExecutionTimeMs: 2500,// how long should crawler wait after page loads before collecting data, defaults to 2.5s
 });
 ```
 
@@ -115,8 +122,10 @@ Additionally, each collector can override following methods:
 - `init(options)` which is called before the crawl begins
 - `addTarget(targetInfo)` which is called whenever new target is created (main page, iframe, web worker etc.)
 
-There are couple of build in collectors in the `collectors/` folder. `CookieCollector` is the simplest one and can be used as a template.
+There are couple of built-in collectors in the `collectors/` folder. `CookieCollector` is the simplest one and can be used as a template.
 
 Each new collector has to be added in two places to be discoverable:
 - `crawlerConductor.js` - so that `crawlerConductor` knows about it (and it can be used in the CLI tool)
 - `main.js` - so that the new collector can be imported by other projects
+
+You can also add types to define the structure of the data exported by your collector. These should be added to the `CollectorData` type in `collectorsList.js`. This will add type hints to all places where the data is used in the code.

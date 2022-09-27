@@ -58,9 +58,12 @@ class APICallCollector extends BaseCollector {
 
     /**
      * @param {TrackerTracker} trackerTracker
-     * @param {{payload: string, description: string, executionContextId: number}} params 
+     * @param {{name: string, payload: string, description: string, executionContextId: number}} params
      */
     onBindingCalled(trackerTracker, params) {
+        if (params.name !== 'registerAPICall') {
+            return;
+        }
         const breakpoint = trackerTracker.processDebuggerPause(params);
 
         if (breakpoint && breakpoint.source && breakpoint.description) {
@@ -149,9 +152,15 @@ module.exports = APICallCollector;
  * @typedef {Object<string, number>} APICallData
  */
 
- /**
-  * @typedef SavedCall
-  * @property {string} source - source script
-  * @property {string} description - breakpoint description
-  * @property {object} arguments - preview or the passed arguments
-  */
+/**
+ * @typedef SavedCall
+ * @property {string} source - source script
+ * @property {string} description - breakpoint description
+ * @property {string[]} arguments - preview or the passed arguments
+ */
+
+/**
+ * @typedef APICallReport
+ * @property {SavedCall[]} savedCalls
+ * @property {Object<string, APICallData>} callStats
+ */

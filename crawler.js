@@ -5,10 +5,6 @@ const {createTimer} = require('./helpers/timer');
 const wait = require('./helpers/wait');
 const tldts = require('tldts');
 
-const MAX_LOAD_TIME = 30000;//ms
-const MAX_TOTAL_TIME = MAX_LOAD_TIME * 2;//ms
-const EXECUTION_WAIT_TIME = 2500;//ms
-
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36';
 const MOBILE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; Pixel 2 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Mobile Safari/537.36';
 
@@ -69,7 +65,7 @@ function openBrowser(log, proxyHost, executablePath) {
 /**
  * @param {puppeteer.BrowserContext} context
  * @param {URL} url
- * @param {{collectors: import('./collectors/BaseCollector')[], log: function(...any):void, urlFilter: function(string, string):boolean, emulateMobile: boolean, emulateUserAgent: boolean, runInEveryFrame: function():void}} data
+ * @param {{collectors: import('./collectors/BaseCollector')[], log: function(...any):void, urlFilter: function(string, string):boolean, emulateMobile: boolean, emulateUserAgent: boolean, runInEveryFrame: function():void, maxLoadTimeMs: number, extraExecutionTimeMs: number, collectorFlags: Object.<string, string>}} data
  *
  * @returns {Promise<CollectResult>}
  */
@@ -79,7 +75,10 @@ async function getSiteData(context, url, {
     urlFilter,
     emulateUserAgent,
     emulateMobile,
-    runInEveryFrame
+    runInEveryFrame,
+    maxLoadTimeMs,
+    extraExecutionTimeMs,
+    collectorFlags,
 }) {
     const testStarted = Date.now();
 
@@ -91,7 +90,8 @@ async function getSiteData(context, url, {
     const collectorOptions = {
         context,
         url,
-        log
+        log,
+        collectorFlags
     };
 
     for (let collector of collectors) {
@@ -200,14 +200,14 @@ async function getSiteData(context, url, {
     let recoveredFromTimeOut = false;
 
     try {
-        await page.goto(url.toString(), {timeout: MAX_LOAD_TIME, waitUntil: 'networkidle0'});
+        await page.goto(url.toString(), {timeout: maxLoadTimeMs, waitUntil: 'networkidle0'});
     } catch (e) {
         if (e instanceof puppeteer.errors.TimeoutError || (e.name && e.name === 'TimeoutError')) {
             // Start ModernTribe
             log(chalk.yellow('networkidle0 timeout detected, retrying using the "load" event instead'));
 
             try {
-                await page.goto(url.toString(), {timeout: MAX_LOAD_TIME, waitUntil: 'load'});
+                await page.goto(url.toString(), {timeout: maxLoadTimeMs, waitUntil: 'load'});
                 recoveredFromTimeOut = true;
             } catch (e) {
                 if (e instanceof puppeteer.errors.TimeoutError || (e.name && e.name === 'TimeoutError')) {
@@ -231,7 +231,7 @@ async function getSiteData(context, url, {
     }
 
     // give website a bit more time for things to settle
-    await page.waitForTimeout(EXECUTION_WAIT_TIME);
+    await page.waitForTimeout(extraExecutionTimeMs);
 
     // Start ModernTribe
     log(`initial page load complete in ${initPageTimer.getElapsedTime()}s`);
@@ -243,7 +243,7 @@ async function getSiteData(context, url, {
         await page.reload({waitUntil: ['networkidle0', 'load']});
     }
 
-    await page.waitForTimeout(EXECUTION_WAIT_TIME);
+    await page.waitForTimeout(extraExecutionTimeMs);
 
     log(`page reload complete in ${initPageTimer.getElapsedTime()}s`);
     // End ModernTribe
@@ -306,7 +306,7 @@ function isThirdPartyRequest(documentUrl, requestUrl) {
 
 /**
  * @param {URL} url
- * @param {{collectors?: import('./collectors/BaseCollector')[], log?: function(...any):void, filterOutFirstParty?: boolean, emulateMobile?: boolean, emulateUserAgent?: boolean, proxyHost?: string, browserContext?: puppeteer.BrowserContext, runInEveryFrame?: function():void, executablePath?: string}} options
+ * @param {{collectors?: import('./collectors/BaseCollector')[], log?: function(...any):void, filterOutFirstParty?: boolean, emulateMobile?: boolean, emulateUserAgent?: boolean, proxyHost?: string, browserContext?: puppeteer.BrowserContext, runInEveryFrame?: function():void, executablePath?: string, maxLoadTimeMs?: number, extraExecutionTimeMs?: number, collectorFlags?: Object.<string, string>}} options
  * @returns {Promise<CollectResult>}
  */
 module.exports = async (url, options) => {
@@ -317,6 +317,10 @@ module.exports = async (url, options) => {
 
     let data = null;
 
+    const maxLoadTimeMs = options.maxLoadTimeMs || 30000;
+    const extraExecutionTimeMs = options.extraExecutionTimeMs || 2500;
+    const maxTotalTimeMs = maxLoadTimeMs * 2;
+
     try {
         data = await wait(getSiteData(context, url, {
             collectors: options.collectors || [],
@@ -324,8 +328,11 @@ module.exports = async (url, options) => {
             urlFilter: options.filterOutFirstParty === true ? isThirdPartyRequest.bind(null) : null,
             emulateUserAgent: options.emulateUserAgent !== false, // true by default
             emulateMobile: options.emulateMobile,
-            runInEveryFrame: options.runInEveryFrame
-        }), MAX_TOTAL_TIME);
+            runInEveryFrame: options.runInEveryFrame,
+            maxLoadTimeMs,
+            extraExecutionTimeMs,
+            collectorFlags: options.collectorFlags
+        }), maxTotalTimeMs);
     } catch(e) {
         log(chalk.red('Crawl failed'), e.message, chalk.gray(e.stack));
         throw e;
@@ -347,5 +354,5 @@ module.exports = async (url, options) => {
  * @property {boolean} timeout true if page didn't fully load before the timeout and loading had to be stopped by the crawler
  * @property {number} testStarted time when the crawl started (unix timestamp)
  * @property {number} testFinished time when the crawl finished (unix timestamp)
- * @property {any} data object containing output from all collectors
- */
+ * @property {import('./helpers/collectorsList').CollectorData} data object containing output from all collectors
+*/

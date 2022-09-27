@@ -1,8 +1,12 @@
 module.exports = {
     "env": {
         "node": true,
-        "es6": true
+        "es6": true,
+        "mocha": true
     },
+    plugins: [
+        'mocha',
+    ],
     "extends": "eslint:recommended",
     "parserOptions": {
         "ecmaVersion": 2018
@@ -297,7 +301,7 @@ module.exports = {
             "error",
             "never"
         ],
-        "space-infix-ops": "off",
+        "space-infix-ops": "error",
         "space-unary-ops": "error",
         "spaced-comment": "off",
         "strict": [
