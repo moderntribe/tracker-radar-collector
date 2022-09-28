@@ -161,6 +161,10 @@ async function getSiteData(context, url, {
     // Create a new page in a pristine context.
     const page = await context.newPage();
 
+    // Start Modern Tribe
+    await page.setDefaultNavigationTimeout(0);
+    // End Modern Tribe
+
     // optional function that should be run on every page (and subframe) in the browser context
     if (runInEveryFrame) {
         page.evaluateOnNewDocument(runInEveryFrame);
